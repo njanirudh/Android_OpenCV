@@ -28,4 +28,13 @@
         android:layout_alignParentBottom="true"
         android:layout_marginBottom="16dp"
         android:text="Info"/>
+
+    <FrameLayout
+        android:id="@+id/glFrame"
+        android:layout_width="300dp"
+        android:layout_height="300dp"
+        android:layout_centerHorizontal="true"
+        android:layout_centerVertical="true">
+
+    </FrameLayout>
 </RelativeLayout>

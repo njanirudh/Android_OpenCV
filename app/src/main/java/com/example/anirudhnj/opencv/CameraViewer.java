@@ -17,6 +17,8 @@ import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
+import android.opengl.GLSurfaceView;
+import android.opengl.GLU;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -31,6 +33,7 @@ import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import java.io.File;
@@ -39,11 +42,18 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import javax.microedition.khronos.egl.EGLConfig;
+import javax.microedition.khronos.opengles.GL10;
+
 public class CameraViewer extends AppCompatActivity {
+
+    private  boolean SHOW_GL = true; // Change to show OPEN_GL SCENE
 
     private static final String TAG = "AndroidCameraApi";
     private Button takePictureButton;
@@ -74,8 +84,6 @@ public class CameraViewer extends AppCompatActivity {
     private HandlerThread mBackgroundThread;
 
 
-
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -104,6 +112,18 @@ public class CameraViewer extends AppCompatActivity {
                 startActivity(myIntent);
             }
         });
+
+        if(SHOW_GL) {
+            GLSurfaceView view = new GLSurfaceView(this);
+            view.setEGLConfigChooser(8, 8, 8, 8, 16, 0);
+            view.getHolder().setFormat(1);
+            view.setZOrderOnTop(true);
+            view.setRenderer(new DemoRenderer());
+
+            FrameLayout mainFrame = (FrameLayout) findViewById(R.id.glFrame);
+            mainFrame.addView(view);
+        }
+
     }
 
     TextureView.SurfaceTextureListener textureListener = new TextureView.SurfaceTextureListener() {
@@ -261,10 +281,15 @@ public class CameraViewer extends AppCompatActivity {
     protected void createCameraPreview() {
         try {
             SurfaceTexture texture = textureView.getSurfaceTexture();
+            //Bitmap mainBitmap = textureView.getBitmap();
+            //Bitmap outBitmap = imgProc.convert_img_2_gray(mainBitmap,mainBitmap.getWidth(),mainBitmap.getHeight(),true);
+
+
             assert texture != null;
             texture.setDefaultBufferSize(imageDimension.getWidth(), imageDimension.getHeight());
 
             Surface surface = new Surface(texture);
+
             captureRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
             captureRequestBuilder.addTarget(surface);
             cameraDevice.createCaptureSession(Arrays.asList(surface), new CameraCaptureSession.StateCallback(){
@@ -356,4 +381,133 @@ public class CameraViewer extends AppCompatActivity {
         stopBackgroundThread();
         super.onPause();
     }
+
+    public class DemoRenderer implements GLSurfaceView.Renderer {
+
+        private Cube cube = new Cube();
+        private float rotation;
+
+        @Override
+        public void onSurfaceCreated(GL10 gl, EGLConfig config) {
+//            gl.glClearColor(0.0f, 0.0f, 0.0f, 0.5f);
+//            // Depth buffer setup.
+//            gl.glClearDepthf(1.0f);
+//            // Enables depth testing.
+//            gl.glEnable(GL10.GL_DEPTH_TEST);
+//            // The type of depth testing to do.
+//            gl.glDepthFunc(GL10.GL_LEQUAL);
+//            // Really nice perspective calculations.
+//            gl.glHint(GL10.GL_PERSPECTIVE_CORRECTION_HINT, GL10.GL_NICEST);
+
+            gl.glDisable(GL10.GL_DITHER);
+            gl.glHint(GL10.GL_PERSPECTIVE_CORRECTION_HINT,
+                    GL10.GL_FASTEST);
+
+            gl.glClearColor(0,0,0,0);
+            gl.glEnable(GL10.GL_CULL_FACE);
+            gl.glShadeModel(GL10.GL_SMOOTH);
+            gl.glEnable(GL10.GL_DEPTH_TEST);
+
+        }
+
+        @Override
+        public void onSurfaceChanged(GL10 gl, int width, int height) {
+            // Sets the current view port to the new size.
+            gl.glViewport(0, 0, width, height);
+            // Select the projection matrix
+            gl.glMatrixMode(GL10.GL_PROJECTION);
+            // Reset the projection matrix
+            gl.glLoadIdentity();
+            // Calculate the aspect ratio of the window
+            GLU.gluPerspective(gl, 45.0f, (float) width / (float) height, 0.1f, 100.0f);
+            // Select the modelview matrix
+            gl.glMatrixMode(GL10.GL_MODELVIEW);
+            // Reset the modelview matrix
+            gl.glLoadIdentity();
+        }
+
+        @Override
+        public void onDrawFrame(GL10 gl) {
+            gl.glClear(GL10.GL_COLOR_BUFFER_BIT | GL10.GL_DEPTH_BUFFER_BIT);
+            gl.glLoadIdentity();
+            gl.glTranslatef(0.0f, 0.0f, -10.0f);
+            gl.glRotatef(rotation, 1.0f, 1.0f, 1.0f);
+            cube.draw(gl);
+            gl.glLoadIdentity();
+            rotation -= 0.15f;
+        }
+
+    }
+
+    public class Cube {
+
+        private FloatBuffer mVertexBuffer;
+        private FloatBuffer mColorBuffer;
+        private ByteBuffer mIndexBuffer;
+
+        private float vertices[] = {
+                -1.0f, -1.0f, -1.0f,
+                1.0f, -1.0f, -1.0f,
+                1.0f,  1.0f, -1.0f,
+                -1.0f, 1.0f, -1.0f,
+                -1.0f, -1.0f,  1.0f,
+                1.0f, -1.0f,  1.0f,
+                1.0f,  1.0f,  1.0f,
+                -1.0f,  1.0f,  1.0f
+        };
+        private float colors[] = {
+                0.0f,  1.0f,  0.0f,  1.0f,
+                0.0f,  1.0f,  0.0f,  1.0f,
+                1.0f,  0.5f,  0.0f,  1.0f,
+                1.0f,  0.5f,  0.0f,  1.0f,
+                1.0f,  0.0f,  0.0f,  1.0f,
+                1.0f,  0.0f,  0.0f,  1.0f,
+                0.0f,  0.0f,  1.0f,  1.0f,
+                1.0f,  0.0f,  1.0f,  1.0f
+        };
+
+        private byte indices[] = {
+                0, 4, 5, 0, 5, 1,
+                1, 5, 6, 1, 6, 2,
+                2, 6, 7, 2, 7, 3,
+                3, 7, 4, 3, 4, 0,
+                4, 7, 6, 4, 6, 5,
+                3, 0, 1, 3, 1, 2
+        };
+
+        public Cube() {
+            ByteBuffer byteBuf = ByteBuffer.allocateDirect(vertices.length * 4);
+            byteBuf.order(ByteOrder.nativeOrder());
+            mVertexBuffer = byteBuf.asFloatBuffer();
+            mVertexBuffer.put(vertices);
+            mVertexBuffer.position(0);
+
+            byteBuf = ByteBuffer.allocateDirect(colors.length * 4);
+            byteBuf.order(ByteOrder.nativeOrder());
+            mColorBuffer = byteBuf.asFloatBuffer();
+            mColorBuffer.put(colors);
+            mColorBuffer.position(0);
+
+            mIndexBuffer = ByteBuffer.allocateDirect(indices.length);
+            mIndexBuffer.put(indices);
+            mIndexBuffer.position(0);
+        }
+
+        public void draw(GL10 gl) {
+            gl.glFrontFace(GL10.GL_CW);
+
+            gl.glVertexPointer(3, GL10.GL_FLOAT, 0, mVertexBuffer);
+            gl.glColorPointer(4, GL10.GL_FLOAT, 0, mColorBuffer);
+
+            gl.glEnableClientState(GL10.GL_VERTEX_ARRAY);
+            gl.glEnableClientState(GL10.GL_COLOR_ARRAY);
+
+            gl.glDrawElements(GL10.GL_TRIANGLES, 36, GL10.GL_UNSIGNED_BYTE,
+                    mIndexBuffer);
+
+            gl.glDisableClientState(GL10.GL_VERTEX_ARRAY);
+            gl.glDisableClientState(GL10.GL_COLOR_ARRAY);
+        }
+    }
+
 }
